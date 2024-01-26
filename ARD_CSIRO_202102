@@ -1,0 +1,46 @@
+/**** Start of imports. If edited, may not auto-convert in the playground. ****/
+var ROI = ee.FeatureCollection("projects/ee-cauqqzhang/assets/N1_ARD_ROI");
+/***** End of imports. If edited, may not auto-convert in the playground. *****/
+
+var dataset = ee.ImageCollection('MODIS/061/MCD64A1')
+
+              .filter(ee.Filter.date('2021-02-01', '2021-02-11')); 
+var burnedArea = dataset.select('BurnDate');
+
+var burnedAreaVis = {
+
+  min: 30.0,
+
+  max: 341.0,
+
+palette: ['4e0400', '951003', 'c61503', 'ff1901'],
+};
+
+Map.setCenter(114, -31, 6);
+print (burnedArea)
+
+Map.addLayer(ROI);
+function clp(img) {
+  return img.clip(ROI)
+}
+
+var BA = burnedArea.map(clp)
+
+var maxIm = BA.max();
+// Get an image that is 1 where pixels have a value greater than or equal to 1
+// and 0 where pixels had a value of 0
+var burnedIm = maxIm.gte(1)
+                    // unmask masked values and set them to 0
+                    .unmask(0);
+
+// Visualise the image    
+Map.addLayer(ee.Image(burnedIm).clip(ROI),{min: 0, max:1},'first');
+
+Export.image.toDrive({
+image: ee.Image(burnedIm),
+description: 'M_BA_02',
+scale: 500,
+region: ROI,
+crs: 'EPSG:4326' 
+});
+

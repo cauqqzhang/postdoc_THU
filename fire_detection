@@ -1,0 +1,283 @@
+/**** Start of imports. If edited, may not auto-convert in the playground. ****/
+var puntos_prias = ee.FeatureCollection("projects/ee-cauqqzhang/assets/xichang"),
+    FRP = ee.FeatureCollection("projects/ee-cauqqzhang/assets/MODIS_VIIRS_DOY2020");
+/***** End of imports. If edited, may not auto-convert in the playground. *****/
+
+
+
+/**
+ * Function to mask clouds using the Sentinel-2 QA band
+ * @param {ee.Image} image Sentinel-2 image
+ * @return {ee.Image} cloud masked Sentinel-2 image
+ */
+function maskS2clouds(image) {
+  var qa = image.select('QA60');
+
+  // Bits 10 and 11 are clouds and cirrus, respectively.
+  var cloudBitMask = 1 << 10;
+  var cirrusBitMask = 1 << 11;
+
+  // Both flags should be set to zero, indicating clear conditions.
+  var mask = qa.bitwiseAnd(cloudBitMask).eq(0)
+      .and(qa.bitwiseAnd(cirrusBitMask).eq(0));
+
+  return image.updateMask(mask).divide(10000).copyProperties(image,['system:time_start']);
+}
+//Se declara la variable de la coleccion de imagenes y se filtra por fecha y region de interes
+var s2_ic_filt = ee.ImageCollection('COPERNICUS/S2_SR')
+                  .filterDate('2020-03-25','2020-03-31')
+                  .filterBounds(puntos_prias)
+                  // Pre-filter to get less cloudy granules.
+                  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE',20))
+                  .map(maskS2clouds);
+var s2_ic_post = ee.ImageCollection('COPERNICUS/S2_SR')
+                  .filterDate('2020-04-05','2020-04-15')
+                  .filterBounds(puntos_prias)
+                  // Pre-filter to get less cloudy granules.
+                  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE',20))
+                  .map(maskS2clouds);
+var s1_ic_pre = ee.ImageCollection('COPERNICUS/S1_GRD')
+                  .filterDate('2020-03-20','2020-03-31')
+                  .filterBounds(puntos_prias)
+var s1_ic_post = ee.ImageCollection('COPERNICUS/S1_GRD')
+                  .filterDate('2020-04-05','2020-04-15')
+                  .filterBounds(puntos_prias)
+                  
+print(s1_ic_pre,'S1_pre_Col') ;   
+print(s1_ic_post,'S1_post_Col') ;
+var listOfImages = s1_ic_pre.toList(s1_ic_pre.size());
+var listOfImages_post = s1_ic_post.toList(s1_ic_post.size());
+var img3 = ee.Image(listOfImages_post.get(0));
+var img4 = ee.Image(listOfImages_post.get(1));
+
+print(s1_ic_pre.first(),'S1_img') ;      
+var img1 = ee.Image(listOfImages.get(2));
+var img2 = ee.Image(listOfImages.get(3));
+var s1_img=ee.ImageCollection.fromImages([img1, img2]).mosaic().clip(puntos_prias.geometry());
+var s1_img_post=ee.ImageCollection.fromImages([img3, img4]).mosaic().clip(puntos_prias.geometry());
+var visualization = {
+  min: 0.0,
+  max: 4000,
+  bands: ['B4', 'B3', 'B2'],
+};
+
+var s1_vis = {
+  min:-25,
+  max: 20,
+  bands: ['VV', 'VH', 'VV_VH'],
+};
+print(s2_ic_filt,'S2 band list');
+
+//
+Map.setCenter(102.16,27.78, 10);
+
+//Se agrega la capa con un promedio .mean() de las imágenes
+
+//Map.addLayer(s2_ic_filt.mean(), visualization, 'RGB');
+
+var bandas = s2_ic_filt.first().bandNames();
+print (bandas, "Bandas Sentinel 2");
+
+//20200325T034531_20200325T034958_T47RQM
+//20200325T034531_20200325T034958_T48RTS
+//20200325T034531_20200325T034958_T48RTR
+//20200325T034531_20200325T034958_T47RQL
+
+//20200409T034529_20200409T035533_T47RQM
+//20200409T034529_20200409T035533_T47RTS
+//20200409T034529_20200409T035533_T47RTR
+//20200409T034529_20200409T035533_T47RQL
+
+var im1 = ee.Image('COPERNICUS/S2/20200325T034531_20200325T034958_T47RQM');
+var im2 = ee.Image('COPERNICUS/S2/20200325T034531_20200325T034958_T48RTS');
+var im3 = ee.Image('COPERNICUS/S2/20200325T034531_20200325T034958_T48RTR');
+var im4 = ee.Image('COPERNICUS/S2/20200325T034531_20200325T034958_T47RQL');
+
+var im5 = ee.Image('COPERNICUS/S2/20200409T034529_20200409T035533_T47RQM');
+var im6 = ee.Image('COPERNICUS/S2/20200409T034529_20200409T035533_T48RTS');
+var im7 = ee.Image('COPERNICUS/S2/20200409T034529_20200409T035533_T48RTR');
+var im8 = ee.Image('COPERNICUS/S2/20200409T034529_20200409T035533_T47RQL');
+var preim = ee.ImageCollection.fromImages([im1, im2, im3,im4]);
+var postim=ee.ImageCollection.fromImages([im5, im6, im7,im8]);
+print('Collection from pre list of images', preim);
+print('Collection from post list of images', postim);
+var premosaic = preim.mosaic().clip(puntos_prias.geometry());
+var postmosaic = postim.mosaic().clip(puntos_prias.geometry());
+print(premosaic);
+Map.addLayer(premosaic, visualization, 'Pre-fire-Mosaic (B4, B3, B2)');
+Map.addLayer(postmosaic, visualization, 'Post-fire-Mosaic (B4, B3, B2)');
+/*
+Map.addLayer(im1,{bands: ['B4', 'B3', 'B2'], max:4000},'im1');
+
+Map.addLayer(im2,{bands: ['B4', 'B3', 'B2'], max:4000},'im2');
+
+Map.addLayer(im3,{bands: ['B4', 'B3', 'B2'], max:4000},'im3');
+
+Map.addLayer(im4,{bands: ['B4', 'B3', 'B2'], max:4000},'im4');
+Map.addLayer(im5,{bands: ['B4', 'B3', 'B2'], max:4000},'im5');
+
+Map.addLayer(im6,{bands: ['B4', 'B3', 'B2'], max:4000},'im6');
+
+Map.addLayer(im7,{bands: ['B4', 'B3', 'B2'], max:4000},'im7');
+
+Map.addLayer(im8,{bands: ['B4', 'B3', 'B2'], max:4000},'im8');
+*/
+//calculate prefire NBR
+var prefire_image=premosaic
+var pre_nbr = prefire_image.normalizedDifference(['B8', 'B12']).rename('NBR');
+var prefire_nbr = prefire_image.addBands(pre_nbr);
+print(prefire_nbr);
+Map.addLayer(prefire_nbr,{bands: ['NBR'],min:-2, max:2},'prefire_nbr');
+
+//calculate postfire NBR
+var postfire_image=postmosaic
+var post_nbr = postfire_image.normalizedDifference(['B8', 'B12']).rename('NBR');
+var postfire_nbr = postfire_image.addBands(post_nbr);
+print(postfire_nbr);
+Map.addLayer(postfire_nbr,{bands: ['NBR'],min:-2, max:2},'postfire_nbr');
+
+//calculate DNBR
+var delta = prefire_nbr.select('NBR').subtract(postfire_nbr.select('NBR'));
+var dNBR = delta.multiply(1000);
+print(delta);
+print(dNBR);
+
+var vv_vh=s1_img.select('VV').subtract(s1_img.select('VH')).rename('VV_VH')
+var s1_pre=s1_img.addBands(vv_vh)
+print(s1_pre,'s1_pre')
+var vv_vh=s1_img_post.select('VV').subtract(s1_img_post.select('VH')).rename('VV_VH')
+var s1_post=s1_img_post.addBands(vv_vh)
+print(s1_post,'s1_post')
+//map classified using color classifiers
+var sld_intervals =
+  '<RasterSymbolizer>' +
+    '<ColorMap type="intervals" extended="false" >' +
+      '<ColorMapEntry color="#ffffff" quantity="-500" label="-500"/>' +
+      '<ColorMapEntry color="#7a8737" quantity="-250" label="-250" />' +
+      '<ColorMapEntry color="#acbe4d" quantity="-100" label="-100" />' +
+      '<ColorMapEntry color="#0ae042" quantity="100" label="100" />' +
+      '<ColorMapEntry color="#fff70b" quantity="270" label="270" />' +
+      '<ColorMapEntry color="#ffaf38" quantity="440" label="440" />' +
+      '<ColorMapEntry color="#ff641b" quantity="660" label="660" />' +
+      '<ColorMapEntry color="#a41fd6" quantity="2000" label="2000" />' +
+    '</ColorMap>' +
+  '</RasterSymbolizer>';
+
+//calulate SAR NDBR
+var vvavh_pre=s1_img.select('VV').add(s1_img.select('VH'));
+var vvsvh_pre=s1_img.select('VV').subtract(s1_img.select('VH'));
+var pre_band_ndbr=vvsvh_pre.divide(vvavh_pre).rename('NDBR');
+var vvavh_post=s1_img_post.select('VV').add(s1_img_post.select('VH'));
+var vvsvh_post=s1_img_post.select('VV').subtract(s1_img_post.select('VH'));
+var post_band_ndbr=vvsvh_post.divide(vvavh_post).rename('NDBR');
+var SAR_dNBR=post_band_ndbr.divide(pre_band_ndbr).multiply(1000)
+print(SAR_dNBR,'SAR_dNBR')
+
+Map.addLayer(SAR_dNBR,{min: -1000, max: 1000, palette: grey},'SAR_dNBR');
+Map.addLayer(SAR_dNBR.sldStyle(sld_intervals), {}, 'SAR dNBR classified');
+var grey = ['white', 'black'];
+Map.addLayer(dNBR.sldStyle(sld_intervals), {}, 'dNBR classified');
+Map.addLayer(dNBR, {min: -1000, max: 1000, palette: grey}, 'NBR classified');
+Map.addLayer(delta, {max:2,min:-2}, 'delta');
+
+Map.addLayer(s1_pre,s1_vis,'S1_pre')
+Map.addLayer(s1_post,s1_vis,'S1_post')
+//Map.addLayer(img3, {max:20,min:-25}, 'img3');
+//Map.addLayer(img4, {max:20,min:-25}, 'img4');
+
+//BA
+var dataset = ee.ImageCollection('MODIS/061/MCD64A1')
+
+              .filter(ee.Filter.date('2020-03-31', '2020-04-05')); 
+var burnedArea = dataset.select('BurnDate');
+
+var burnedAreaVis = {
+
+  min: 30.0,
+
+  max: 341.0,
+
+palette: ['4e0400', '951003', 'c61503', 'ff1901'],
+};
+
+//Map.setCenter(114, -31, 6);
+print (burnedArea)
+
+var ROI=puntos_prias.geometry()
+
+function clp(img) {
+  return img.clip(ROI)
+}
+
+var BA = burnedArea.map(clp)
+
+var maxIm = BA.max();
+// Get an image that is 1 where pixels have a value greater than or equal to 1
+// and 0 where pixels had a value of 0
+var burnedIm = maxIm.gte(1)
+                    // unmask masked values and set them to 0
+                    .unmask(0);
+var burnedIm = maxIm.gte(1);
+// Visualise the image    
+
+var dataset = ee.ImageCollection('FIRMS').filter(
+    ee.Filter.date('2020-03-31', '2020-04-05')).filterBounds(puntos_prias);
+var fires = dataset.select('T21');
+var firesVis = {
+  min: 325.0,
+  max: 400.0,
+  palette: ['indianred', 'orange', 'yellow'],
+};
+Map.addLayer(fires.map(clp), firesVis, 'Fires');
+print(dataset,'fire')
+Map.addLayer(ee.Image(burnedIm).clip(puntos_prias),{palette: ['00FFFF', 'red']},'BA');
+Map.addLayer(puntos_prias,{},'geometry');
+Map.addLayer(FRP,{color: 'E6532C'}, 'FRP_ALL');
+var gm=fires.map(clp).geometry()
+Map.addLayer(FRP.filter(ee.Filter.bounds(gm)).filter(ee.Filter.rangeContains('DOY_left', 91,95)),{color: 'DB3C2D'}, 'FRP_T21FIRMS');
+
+//S1
+/*
+
+//加载影像和山西矢量边界
+var s1 = ee.ImageCollection("COPERNICUS/S1_GRD");
+var table = ee.FeatureCollection("users/bqt2000204051/shanxijie");
+ 
+ 
+// 区域筛选
+var collection = s1.filterBounds(table).select('VV');
+//设置影像的可视化参数
+var viz = {min:-20, max:0, palette:['black', 'blue', 'purple', 'cyan', 'green', 'yellow', 'red']};
+ 
+// 绘制2014和2020年湿润和干燥下的影像
+//根据百分比设定干湿比例区分干地和湿地
+var wet = collection.filterDate('2014-01-01', '2020-12-31')
+.reduce(ee.Reducer.percentile([10]));
+var dry = collection.filterDate('2014-01-01', '2020-12-31')
+.reduce(ee.Reducer.percentile([90]));
+ 
+//分别加载影像
+ 
+Map.addLayer(wet.clip(table),viz,"Wet");
+Map.addLayer(dry.clip(table),viz,"Dry");
+// 添加地图中心点
+Map.centerObject(table, 8);
+ 
+// 求取两者的差异
+//大家看，这里就是影像的直接相减，所以很简单，这种相减必须是得reduce后的统计过后才可以，否则会出现this is not a function
+var diff = wet.subtract(dry)
+Map.addLayer(diff.clip(table),viz,"wet -  dry");
+ 
+// 设定阈值的范围
+var DIFF_UPPER_THRESHOLD = -8;
+ 
+// 选择小于阈值的区域
+//两者差异小于这个的时候，认定为洪灾出现的地方
+var diff_thresholded = diff.lt(DIFF_UPPER_THRESHOLD);
+ 
+ 
+//添加两者的差是多少
+Map.addLayer(diff_thresholded.updateMask(diff_thresholded).clip(table),
+{palette:"0000FF"},'flooded areas - blue',1);
+
+*/
